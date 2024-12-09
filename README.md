@@ -1,6 +1,11 @@
 # timetask
 一款支持自定义定时任务的chatgpt-on-wechat插件，支持自定义时间、轮询周期、自定义时间，包含动态添加任务、取消任务、查看任务列表等功能，一款定时任务系统的插件。
 
+修改自：haikerapples/timetask
+由于原插件有一些bug，作者好像也不再进行维护，所以我就更新了一版。
+修改了重复起进程的bug，频繁监听聊天记录的bug，以及我的机器人回复图片时报错的问题。
+由于我是DOW，没有COW，不知道在COW上是否正常，大家可以试一下
+
 
 ## **【插件功能介绍】**
 ##### 🎉功能一：
@@ -158,3 +163,52 @@ Tips：拓展功能需要项目已安装该插件，更多自定义插件支持�
 
 历史任务 - sheet： 存放历史已消费的任务
 ```
+
+## TimeTask Plugin
+
+### Overview
+The TimeTask Plugin is a Python-based task management tool that allows users to schedule and manage tasks effectively. It integrates with various messaging channels to send reminders and notifications.
+
+### Features
+- Schedule tasks at specific times.
+- Cancel scheduled tasks.
+- View a list of all scheduled tasks.
+- Support for group tasks and individual tasks.
+
+### Usage
+To use the TimeTask Plugin, follow these commands:
+
+### Adding a Task
+```
+$time [周期] [时间] [事件]
+```
+
+### Cancelling a Task
+```
+$time 取消任务 [任务编号]
+```
+
+### Viewing Tasks
+```
+$time 任务列表
+```
+
+### Installation
+1. Clone the repository:
+   ```
+   git clone https://github.com/sofs2005/timetask
+   ```
+2. Navigate to the plugin directory:
+   ```
+   cd timetask
+   ```
+3. Install the required dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+### Contributing
+Contributions are welcome! Please submit a pull request or open an issue for any enhancements or bug fixes.
+
+### License
+This project is licensed under the MIT License.
