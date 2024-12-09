@@ -18,16 +18,34 @@ except Exception as e:
 
 
 class TaskManager(object):
+    _instance = None
+    _lock = threading.Lock()
+    _initialized = False
     
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            with cls._lock:
+                if not cls._instance:
+                    cls._instance = super(TaskManager, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self, timeTaskFunc):
-        super().__init__()
-        #保存定时任务回调
-        self.timeTaskFunc = timeTaskFunc
-        
-        # 创建子线程
-        t = threading.Thread(target=self.pingTimeTask_in_sub_thread)
-        t.setDaemon(True) 
-        t.start()
+        if not TaskManager._initialized:
+            with TaskManager._lock:
+                if not TaskManager._initialized:
+                    super().__init__()
+                    self.timeTaskFunc = timeTaskFunc
+
+                    # 添加缓存相关变量
+                    self.last_refresh_time = 0
+                    self.cache_refresh_interval = 60  # 默认60秒刷新一次
+                    self.data_dirty = False
+                    
+                    # 创建子线程
+                    t = threading.Thread(target=self.pingTimeTask_in_sub_thread)
+                    t.setDaemon(True) 
+                    t.start()
+                    TaskManager._initialized = True
         
     # 定义子线程函数
     def pingTimeTask_in_sub_thread(self):
@@ -187,8 +205,19 @@ class TaskManager(object):
             
     #拉取Excel最新数据    
     def refreshDataFromExcel(self):
+        current_time = time.time()
+        # 检查是否需要刷新数据
+        if not self.data_dirty and current_time - self.last_refresh_time < self.cache_refresh_interval:
+            return
+            
         tempArray = ExcelTool().readExcel()
-        self.convetDataToModelArray(tempArray) 
+        self.convetDataToModelArray(tempArray)
+        self.last_refresh_time = current_time
+        self.data_dirty = False
+
+    # 标记数据需要刷新
+    def mark_data_dirty(self):
+        self.data_dirty = True
         
     #迁移历史任务   
     def moveTask_toHistory(self, modelArray):
@@ -368,6 +397,8 @@ class TaskManager(object):
         
     #添加任务
     def addTask(self, taskModel: TimeTaskModel):
+        # 添加任务时标记数据需要刷新
+        self.mark_data_dirty()
         taskList = ExcelTool().addItemToExcel(taskModel.get_formatItem())
         self.convetDataToModelArray(taskList)
         return taskModel.taskId   
