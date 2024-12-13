@@ -20,6 +20,7 @@ import io
 import time
 import gc
 from channel import channel_factory
+import threading
 
 class TimeTaskRemindType(Enum):
     NO_Task = 1           #无任务
@@ -49,6 +50,7 @@ class timetask(Plugin):
         self.conf = conf()
         self.taskManager = TaskManager(self.runTimeTask)
         self.channel = None
+        self._channel_lock = threading.Lock()
         
     def on_handle_context(self, e_context: EventContext):
         if self.channel is None:
@@ -289,72 +291,74 @@ class timetask(Plugin):
         
     #使用自定义回复
     def replay_use_custom(self, model: TimeTaskModel, reply_text: str, replyType: ReplyType, context :Context, retry_cnt=0):
-        try:    
-            reply = Reply()
-            reply.type = replyType
-            
-            # Handle different response types
-            if replyType == ReplyType.IMAGE:
-                logging.info(f"[timetask] Handling image response for task {model.taskId}")
-                # For image responses, just send the image URL/reference
-                if isinstance(reply_text, str):
+        while retry_cnt < 2:
+            try:    
+                reply = Reply()
+                reply.type = replyType
+                
+                # Handle different response types
+                if replyType == ReplyType.IMAGE:
+                    logging.info(f"[timetask] Handling image response for task {model.taskId}")
+                    # For image responses, just send the image URL/reference
+                    if isinstance(reply_text, str):
+                        reply.content = reply_text
+                    else:
+                        logging.warning(f"[timetask] Invalid image response format for task {model.taskId}")
+                        # Fall back to text response
+                        reply.type = ReplyType.TEXT
+                        reply.content = " 抱歉，图片消息处理失败"
+                elif replyType == ReplyType.IMAGE_URL:
+                    logging.info(f"[timetask] Handling image URL response for task {model.taskId}")
                     reply.content = reply_text
                 else:
-                    logging.warning(f"[timetask] Invalid image response format for task {model.taskId}")
-                    # Fall back to text response
-                    reply.type = ReplyType.TEXT
-                    reply.content = " 抱歉，图片消息处理失败"
-            elif replyType == ReplyType.IMAGE_URL:
-                logging.info(f"[timetask] Handling image URL response for task {model.taskId}")
-                reply.content = reply_text
-            else:
-                # Default text handling
-                reply.content = reply_text
+                    # Default text handling
+                    reply.content = reply_text
 
-            # Ensure channel is initialized
-            if self.channel is None:
-                channel_name = RobotConfig.conf().get("channel_type", "wx")
-                from channel.channel_factory import channel_factory
-                self.channel = channel_factory.create_channel(channel_name)
-                if self.channel is None:
-                    raise Exception("Failed to initialize channel")
-                logging.info(f"[timetask] Created new channel for task {model.taskId}")
-            
-            logging.debug(f"[timetask] Sending response type {replyType} for task {model.taskId}")
-            self.channel.send(reply, context)
+                # Ensure channel is initialized
+                with self._channel_lock:
+                    if self.channel is None:
+                        channel_name = RobotConfig.conf().get("channel_type", "wx")
+                        from channel.channel_factory import channel_factory
+                        self.channel = channel_factory.create_channel(channel_name)
+                        if self.channel is None:
+                            raise Exception("Failed to initialize channel")
+                        logging.info(f"[timetask] Created new channel for task {model.taskId}")
                 
-        except Exception as e:
-            logging.error(f"[timetask] Error sending response for task {model.taskId}: {str(e)}")
-            if retry_cnt < 2:
-                logging.info(f"[timetask] Retrying send for task {model.taskId} (attempt {retry_cnt + 1})")
+                logging.debug(f"[timetask] Sending response type {replyType} for task {model.taskId}")
+                self.channel.send(reply, context)
+                break
+                
+            except Exception as e:
+                logging.error(f"[timetask] Error sending response for task {model.taskId}: {str(e)}")
+                retry_cnt += 1
                 time.sleep(3 + 3 * retry_cnt)
                 # Reset channel before retry
                 self.channel = None
-                self.replay_use_custom(model, reply_text, replyType, context, retry_cnt + 1)
-            else:
-                # Send error message after max retries
-                error_reply = Reply()
-                error_reply.type = ReplyType.TEXT
-                error_reply.content = " 抱歉，消息发送失败，请稍后再试"
-                try:
-                    if self.channel:
-                        self.channel.send(error_reply, context)
-                    else:
-                        logging.error("[timetask] No channel available to send error message")
-                except Exception as e:
-                    logging.error(f"[timetask] Failed to send error message: {str(e)}")
+        else:
+            # Send error message after max retries
+            error_reply = Reply()
+            error_reply.type = ReplyType.TEXT
+            error_reply.content = " 抱歉，消息发送失败，请稍后再试"
+            try:
+                if self.channel:
+                    self.channel.send(error_reply, context)
+                else:
+                    logging.error("[timetask] No channel available to send error message")
+            except Exception as e:
+                logging.error(f"[timetask] Failed to send error message: {str(e)}")
         
     #执行定时task
     def runTimeTask(self, model: TimeTaskModel):
         try:
             # Ensure channel is initialized
-            if self.channel is None:
-                channel_name = RobotConfig.conf().get("channel_type", "wx")
-                from channel.channel_factory import channel_factory
-                self.channel = channel_factory.create_channel(channel_name)
+            with self._channel_lock:
                 if self.channel is None:
-                    raise Exception("Failed to initialize channel")
-                logging.info(f"[timetask] Created new channel for task execution")
+                    channel_name = RobotConfig.conf().get("channel_type", "wx")
+                    from channel.channel_factory import channel_factory
+                    self.channel = channel_factory.create_channel(channel_name)
+                    if self.channel is None:
+                        raise Exception("Failed to initialize channel")
+                    logging.info(f"[timetask] Created new channel for task execution")
 
             #事件内容
             eventStr = model.eventStr
