@@ -21,29 +21,31 @@ class TaskManager(object):
     _instance = None
     _lock = threading.Lock()
     _initialized = False
+    
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            with cls._lock:
+                if not cls._instance:
+                    cls._instance = super(TaskManager, cls).__new__(cls)
+        return cls._instance
 
-    def __new__(cls, timeTaskFunc=None):
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super(TaskManager, cls).__new__(cls)
-            return cls._instance
+    def __init__(self, timeTaskFunc):
+        if not TaskManager._initialized:
+            with TaskManager._lock:
+                if not TaskManager._initialized:
+                    super().__init__()
+                    self.timeTaskFunc = timeTaskFunc
 
-    def __init__(self, timeTaskFunc=None):
-        with self._lock:
-            if not self._initialized and timeTaskFunc is not None:
-                super().__init__()
-                self.timeTaskFunc = timeTaskFunc
-
-                # 添加缓存相关变量
-                self.last_refresh_time = 0
-                self.cache_refresh_interval = 60  # 默认60秒刷新一次
-                self.data_dirty = False
-
-                # 创建子线程
-                self.monitor_thread = threading.Thread(target=self.pingTimeTask_in_sub_thread)
-                self.monitor_thread.daemon = True 
-                self.monitor_thread.start()
-                self._initialized = True
+                    # 添加缓存相关变量
+                    self.last_refresh_time = 0
+                    self.cache_refresh_interval = 60  # 默认60秒刷新一次
+                    self.data_dirty = False
+                    
+                    # 创建子线程
+                    t = threading.Thread(target=self.pingTimeTask_in_sub_thread)
+                    t.setDaemon(True) 
+                    t.start()
+                    TaskManager._initialized = True
         
     # 定义子线程函数
     def pingTimeTask_in_sub_thread(self):
