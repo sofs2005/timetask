@@ -306,16 +306,13 @@ class timetask(Plugin):
             channel_name = RobotConfig.conf().get("channel_type", "wx")
             channel = channel_factory.create_channel(channel_name)
             channel.send(reply, context)
-            
-            #释放
-            channel = None
-            gc.collect()    
                 
         except Exception as e:
             if retry_cnt < 2:
                 time.sleep(3 + 3 * retry_cnt)
                 self.replay_use_custom(model, reply_text, replyType, context,retry_cnt + 1)
-            
+            else:
+                logging.error(f"发送消息失败，错误信息：{str(e)}")
         
     #执行定时task
     def runTimeTask(self, model: TimeTaskModel):
