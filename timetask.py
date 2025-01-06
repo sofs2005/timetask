@@ -64,16 +64,19 @@ class timetask(Plugin):
         query = e_context["context"].content
         logging.info("定时任务的输入信息为:{}".format(query))
         
+        #指令前缀
+        command_prefix = self.conf.get("command_prefix", "$time")
+        
         #获取是否群聊
         is_group = e_context["context"].get("isgroup", False)
         
         #群聊时移除用户id前缀
         if is_group and ":" in query:
-            query = query.split(":", 1)[1].strip()
+            # 检查冒号前是否包含命令前缀，如果包含说明不是用户id前缀
+            parts = query.split(":", 1)
+            if not command_prefix in parts[0]:
+                query = parts[1].strip()
             
-        #指令前缀
-        command_prefix = self.conf.get("command_prefix", "$time")
-        
         #需要的格式：$time 时间 事件
         if query.startswith(command_prefix) :
             #处理任务
